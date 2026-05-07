@@ -37,18 +37,49 @@ if "current_question" not in st.session_state:
 
 if "mode" not in st.session_state:
     st.session_state.mode = "Duelo de Categorías"
+
+if "used_questions" not in st.session_state:
+    st.session_state.used_questions = []
+
 if "chain_position" not in st.session_state:
     st.session_state.chain_position = 0
 
 if "chain_values" not in st.session_state:
     st.session_state.chain_values = [100, 200, 400, 800, 1500, 3000]
 
+
+# -------------------------
+# Funciones
+# -------------------------
 def get_random_question():
     if st.session_state.mode == "No era tan fácil":
-        trick_questions = [q for q in QUESTIONS if q["type"] == "trick"]
-        return random.choice(trick_questions)
+        available_questions = [
+            q for q in QUESTIONS
+            if q["type"] == "trick"
+            and q["question"] not in st.session_state.used_questions
+        ]
+    else:
+        available_questions = [
+            q for q in QUESTIONS
+            if q["question"] not in st.session_state.used_questions
+        ]
 
-    return random.choice(QUESTIONS)
+    # Si se acaban las preguntas, reinicia el banco usado
+    if not available_questions:
+        st.session_state.used_questions = []
+
+        if st.session_state.mode == "No era tan fácil":
+            available_questions = [
+                q for q in QUESTIONS
+                if q["type"] == "trick"
+            ]
+        else:
+            available_questions = QUESTIONS
+
+    selected_question = random.choice(available_questions)
+    st.session_state.used_questions.append(selected_question["question"])
+
+    return selected_question
 
 
 def reset_game():
@@ -63,6 +94,17 @@ def reset_game():
     st.session_state.chain_position = 0
 
 
+def finish_turn():
+    st.session_state.question_count += 1
+
+    if st.session_state.question_count >= st.session_state.total_questions:
+        st.session_state.game_started = False
+        st.session_state.game_finished = True
+    else:
+        st.session_state.turn = 1 - st.session_state.turn
+        st.session_state.current_question = get_random_question()
+
+
 # -------------------------
 # Pantalla principal
 # -------------------------
@@ -72,7 +114,7 @@ st.caption("Banco, duelo y trampas culturales.")
 if not st.session_state.game_started and not st.session_state.game_finished:
     st.subheader("Configurar partida")
 
-    player1 = st.text_input("Jugador 1", value="Alo")
+    player1 = st.text_input("Jugador 1", value="Alondra")
     player2 = st.text_input("Jugador 2", value="Guersom")
 
     mode = st.selectbox(
@@ -94,8 +136,13 @@ if not st.session_state.game_started and not st.session_state.game_finished:
         }
         st.session_state.mode = mode
         st.session_state.total_questions = total_questions
+        st.session_state.question_count = 0
+        st.session_state.turn = 0
+        st.session_state.used_questions = []
+        st.session_state.chain_position = 0
         st.session_state.current_question = get_random_question()
         st.session_state.game_started = True
+        st.session_state.game_finished = False
         st.rerun()
 
 
@@ -112,23 +159,28 @@ elif st.session_state.game_started:
 
     progress = st.session_state.question_count / st.session_state.total_questions
     st.progress(progress)
-if st.session_state.mode == "Banco o Quiebra":
-    if st.session_state.chain_position == 0:
-        current_chain_value = 0
-    else:
-        current_chain_value = st.session_state.chain_values[
-            st.session_state.chain_position - 1
-        ]
 
-    st.info(f"Cadena actual: {current_chain_value} puntos")
-
-    if st.button("Banco"):
-        if current_chain_value > 0:
-            st.session_state.scores[current_player] += current_chain_value
-            st.session_state.chain_position = 0
-            st.rerun()
+    # Modo Banco o Quiebra
+    if st.session_state.mode == "Banco o Quiebra":
+        if st.session_state.chain_position == 0:
+            current_chain_value = 0
         else:
-            st.warning("No hay puntos para bancar todavía.")
+            current_chain_value = st.session_state.chain_values[
+                st.session_state.chain_position - 1
+            ]
+
+        st.info(f"Cadena actual: {current_chain_value} puntos")
+
+        if st.button("Banco"):
+            if current_chain_value > 0:
+                st.session_state.scores[current_player] += current_chain_value
+                st.session_state.chain_position = 0
+                st.success(f"{current_player} bancó {current_chain_value} puntos.")
+                finish_turn()
+                st.rerun()
+            else:
+                st.warning("No hay puntos para bancar todavía.")
+
     st.write(f"### {q['question']}")
 
     selected_answer = st.radio(
@@ -138,26 +190,19 @@ if st.session_state.mode == "Banco o Quiebra":
     )
 
     if st.button("Responder"):
-    if selected_answer == q["answer"]:
-        if st.session_state.mode == "Banco o Quiebra":
-            max_position = len(st.session_state.chain_values)
-            if st.session_state.chain_position < max_position:
-                st.session_state.chain_position += 1
+        if selected_answer == q["answer"]:
+            if st.session_state.mode == "Banco o Quiebra":
+                max_position = len(st.session_state.chain_values)
+
+                if st.session_state.chain_position < max_position:
+                    st.session_state.chain_position += 1
+            else:
+                st.session_state.scores[current_player] += 100
         else:
-            st.session_state.scores[current_player] += 100
-    else:
-        if st.session_state.mode == "Banco o Quiebra":
-            st.session_state.chain_position = 0
+            if st.session_state.mode == "Banco o Quiebra":
+                st.session_state.chain_position = 0
 
-        st.session_state.question_count += 1
-
-        if st.session_state.question_count >= st.session_state.total_questions:
-            st.session_state.game_started = False
-            st.session_state.game_finished = True
-        else:
-            st.session_state.turn = 1 - st.session_state.turn
-            st.session_state.current_question = get_random_question()
-
+        finish_turn()
         st.rerun()
 
     st.divider()
