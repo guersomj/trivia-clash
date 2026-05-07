@@ -147,16 +147,32 @@ elif st.session_state.game_finished:
     st.subheader("Resultado final")
 
     scores = st.session_state.scores
-    winner = max(scores, key=scores.get)
-    loser = min(scores, key=scores.get)
+    highest_score = max(scores.values())
+    lowest_score = min(scores.values())
 
-    st.success(f"🏆 Ganador/a: {winner}")
+    winners = [
+        player for player, score in scores.items()
+        if score == highest_score
+    ]
+
+    losers = [
+        player for player, score in scores.items()
+        if score == lowest_score
+    ]
+
     st.write("## Marcador final")
 
     for player, score in scores.items():
         st.write(f"**{player}:** {score} puntos")
 
-    st.warning(f"El rival más débil fue: {loser}. Adiós.")
+    if len(winners) > 1:
+        st.info("🤝 Empate. Nadie ganó, nadie perdió. Todos culturalmente sospechosos.")
+    else:
+        winner = winners[0]
+        loser = losers[0]
+
+        st.success(f"🏆 Ganador/a: {winner}")
+        st.warning(f"El rival más débil fue: {loser}. Adiós.")
 
     if st.button("Jugar otra vez"):
         reset_game()
