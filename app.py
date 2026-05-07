@@ -37,7 +37,11 @@ if "current_question" not in st.session_state:
 
 if "mode" not in st.session_state:
     st.session_state.mode = "Duelo de Categorías"
+if "chain_position" not in st.session_state:
+    st.session_state.chain_position = 0
 
+if "chain_values" not in st.session_state:
+    st.session_state.chain_values = [100, 200, 400, 800, 1500, 3000]
 
 def get_random_question():
     if st.session_state.mode == "No era tan fácil":
@@ -55,6 +59,8 @@ def reset_game():
     st.session_state.turn = 0
     st.session_state.question_count = 0
     st.session_state.current_question = None
+    st.session_state.used_questions = []
+    st.session_state.chain_position = 0
 
 
 # -------------------------
@@ -106,7 +112,23 @@ elif st.session_state.game_started:
 
     progress = st.session_state.question_count / st.session_state.total_questions
     st.progress(progress)
+if st.session_state.mode == "Banco o Quiebra":
+    if st.session_state.chain_position == 0:
+        current_chain_value = 0
+    else:
+        current_chain_value = st.session_state.chain_values[
+            st.session_state.chain_position - 1
+        ]
 
+    st.info(f"Cadena actual: {current_chain_value} puntos")
+
+    if st.button("Banco"):
+        if current_chain_value > 0:
+            st.session_state.scores[current_player] += current_chain_value
+            st.session_state.chain_position = 0
+            st.rerun()
+        else:
+            st.warning("No hay puntos para bancar todavía.")
     st.write(f"### {q['question']}")
 
     selected_answer = st.radio(
@@ -116,11 +138,16 @@ elif st.session_state.game_started:
     )
 
     if st.button("Responder"):
-        if selected_answer == q["answer"]:
-            st.success(f"Correcto. {current_player} suma 100 puntos.")
-            st.session_state.scores[current_player] += 100
+    if selected_answer == q["answer"]:
+        if st.session_state.mode == "Banco o Quiebra":
+            max_position = len(st.session_state.chain_values)
+            if st.session_state.chain_position < max_position:
+                st.session_state.chain_position += 1
         else:
-            st.error(f"Incorrecto. La respuesta correcta era: {q['answer']}")
+            st.session_state.scores[current_player] += 100
+    else:
+        if st.session_state.mode == "Banco o Quiebra":
+            st.session_state.chain_position = 0
 
         st.session_state.question_count += 1
 
